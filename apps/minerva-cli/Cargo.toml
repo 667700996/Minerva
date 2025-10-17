@@ -14,6 +14,7 @@ tracing-subscriber.workspace = true
 futures.workspace = true
 crossterm.workspace = true
 ratatui.workspace = true
+clap.workspace = true
 minerva-orchestrator = { path = "../../crates/minerva-orchestrator" }
 minerva-ops = { path = "../../crates/minerva-ops" }
 minerva-controller = { path = "../../crates/minerva-controller" }

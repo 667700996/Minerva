@@ -42,7 +42,7 @@ docs/architecture.md
   Logging/tracing, persistent telemetry, replay serialization, and operational tooling hooks.
 
 - **minerva-cli**  
-  Developer-facing binary for running the system locally. Loads configuration, wires dependencies, and starts orchestrated matches.
+  Developer-facing binary for running the system locally. Loads configuration, wires dependencies, starts orchestrated matches, and now ships with a 터미널 UI(TUI) that streams lifecycle/엔진/텔레메트리 이벤트.
 
 ## Design Principles
 

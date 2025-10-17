@@ -27,7 +27,7 @@ pub enum UiMessage {
     Shutdown,
 }
 
-pub fn run(receiver: Receiver<UiMessage>) -> Result<()> {
+pub fn run(receiver: Receiver<UiMessage>, summary: String) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -35,7 +35,7 @@ pub fn run(receiver: Receiver<UiMessage>) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
     terminal.hide_cursor()?;
 
-    let res = run_loop(&mut terminal, receiver);
+    let res = run_loop(&mut terminal, receiver, summary.as_str());
 
     terminal.show_cursor()?;
     disable_raw_mode()?;
@@ -46,6 +46,7 @@ pub fn run(receiver: Receiver<UiMessage>) -> Result<()> {
 fn run_loop<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     receiver: Receiver<UiMessage>,
+    summary: &str,
 ) -> Result<()> {
     let mut logs: VecDeque<String> = VecDeque::with_capacity(MAX_LOG_ENTRIES);
     let mut last_status = String::from("대기 중");
@@ -90,6 +91,10 @@ fn run_loop<B: ratatui::backend::Backend>(
                 ),
                 Span::raw("  "),
                 Span::raw(last_status.clone()),
+                Span::raw("  "),
+                Span::styled("설정:", Style::default().fg(Color::Magenta)),
+                Span::raw(" "),
+                Span::raw(summary),
                 Span::raw("  "),
                 Span::styled("q", Style::default().fg(Color::Yellow)),
                 Span::raw(" 를 눌러 종료"),

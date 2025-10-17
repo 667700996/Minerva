@@ -1,9 +1,13 @@
 //! Emulator/ADB controller abstraction layer.
 
+mod adb;
+
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
+
+pub use adb::AdbController;
 
 use async_trait::async_trait;
 use chrono::Utc;

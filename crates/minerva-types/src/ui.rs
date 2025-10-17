@@ -1,5 +1,6 @@
 use crate::board::Square;
 use serde::{Deserialize, Serialize};
+use std::{fmt, str::FromStr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Point {
@@ -48,7 +49,57 @@ pub enum FormationPreset {
 
 impl Default for FormationPreset {
     fn default() -> Self {
-        FormationPreset::MasangMasang
+        FormationPreset::MasangSangMa
+    }
+}
+
+impl FormationPreset {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            FormationPreset::MasangMasang => "MasangMasang",
+            FormationPreset::SangMasangMa => "SangMasangMa",
+            FormationPreset::MasangSangMa => "MasangSangMa",
+            FormationPreset::SangMaMaSang => "SangMaMaSang",
+        }
+    }
+
+    pub fn variants() -> &'static [&'static str] {
+        &[
+            "MasangMasang",
+            "SangMasangMa",
+            "MasangSangMa",
+            "SangMaMaSang",
+        ]
+    }
+}
+
+impl fmt::Display for FormationPreset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for FormationPreset {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let normalized = s.trim();
+        for variant in Self::variants() {
+            if variant.eq_ignore_ascii_case(normalized) {
+                return match *variant {
+                    "MasangMasang" => Ok(FormationPreset::MasangMasang),
+                    "SangMasangMa" => Ok(FormationPreset::SangMasangMa),
+                    "MasangSangMa" => Ok(FormationPreset::MasangSangMa),
+                    "SangMaMaSang" => Ok(FormationPreset::SangMaMaSang),
+                    _ => Err(format!("알 수 없는 진형: {}", normalized)),
+                };
+            }
+        }
+        Err(format!(
+            "알 수 없는 진형: {} (사용 가능: {:?})",
+            normalized,
+            Self::variants()
+        ))
     }
 }
 
@@ -116,5 +167,14 @@ mod tests {
             formation_point(FormationPreset::SangMaMaSang),
             Point::new(450, 620)
         );
+    }
+
+    #[test]
+    fn formation_preset_display_and_parse() {
+        for variant in FormationPreset::variants() {
+            let parsed = variant.parse::<FormationPreset>().expect("parse preset");
+            assert_eq!(parsed.to_string(), *variant);
+        }
+        assert!("unknown".parse::<FormationPreset>().is_err());
     }
 }

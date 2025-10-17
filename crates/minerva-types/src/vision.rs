@@ -19,4 +19,13 @@ impl ImageFrame {
             captured_at: Utc::now(),
         }
     }
+
+    pub fn from_rgba(width: u32, height: u32, data: Vec<u8>) -> Self {
+        Self {
+            width,
+            height,
+            data,
+            captured_at: Utc::now(),
+        }
+    }
 }

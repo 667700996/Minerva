@@ -1,8 +1,13 @@
 //! Board recognition abstractions.
 
+use std::{fs, path::PathBuf};
+
 use async_trait::async_trait;
+use chrono::Utc;
+use image::{ImageBuffer, Rgba};
 use minerva_types::{
-    board::BoardState, game::GameSnapshot, vision::ImageFrame, MinervaError, Result,
+    board::BoardState, config::VisionConfig, game::GameSnapshot, vision::ImageFrame, MinervaError,
+    Result,
 };
 use tokio::time::{sleep, Duration};
 use tracing::info;
@@ -20,11 +25,35 @@ pub trait BoardRecognizer: Send + Sync {
 }
 
 /// Simple recognizer placeholder using template matching semantics.
-pub struct TemplateMatchingRecognizer;
+pub struct TemplateMatchingRecognizer {
+    capture_dir: Option<PathBuf>,
+}
 
 impl TemplateMatchingRecognizer {
-    pub fn new() -> Self {
-        Self
+    pub fn new(config: VisionConfig) -> Self {
+        Self {
+            capture_dir: config.capture_dir.map(PathBuf::from),
+        }
+    }
+
+    fn persist_capture(&self, frame: &ImageFrame) -> Result<Option<PathBuf>> {
+        let Some(dir) = &self.capture_dir else {
+            return Ok(None);
+        };
+
+        fs::create_dir_all(dir)
+            .map_err(|err| vision_error(format!("캡처 디렉터리 생성 실패({:?}): {err}", dir)))?;
+        let timestamp = Utc::now().format("%Y%m%d_%H%M%S_%3f");
+        let path = dir.join(format!("frame_{}.png", timestamp));
+        let Some(buffer) =
+            ImageBuffer::<Rgba<u8>, _>::from_raw(frame.width, frame.height, frame.data.clone())
+        else {
+            return Err(vision_error("이미지 버퍼 생성 실패"));
+        };
+        buffer
+            .save(&path)
+            .map_err(|err| vision_error(format!("프레임 저장 실패: {err}")))?;
+        Ok(Some(path))
     }
 }
 
@@ -43,6 +72,9 @@ impl BoardRecognizer for TemplateMatchingRecognizer {
 
     async fn recognize(&self, frame: &ImageFrame, hints: RecognitionHints) -> Result<GameSnapshot> {
         let board = self.align_board(frame).await?;
+        if let Ok(Some(path)) = self.persist_capture(frame) {
+            info!("저장된 스크린샷: {:?}", path);
+        }
         let snapshot = GameSnapshot {
             board,
             ..Default::default()
