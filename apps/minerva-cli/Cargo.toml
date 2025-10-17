@@ -1,0 +1,20 @@
+[package]
+name = "minerva-cli"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+minerva-orchestrator = { path = "../../crates/minerva-orchestrator" }
+minerva-ops = { path = "../../crates/minerva-ops" }
+minerva-controller = { path = "../../crates/minerva-controller" }
+minerva-engine = { path = "../../crates/minerva-engine" }
+minerva-network = { path = "../../crates/minerva-network" }
+minerva-types = { path = "../../crates/minerva-types" }
+minerva-vision = { path = "../../crates/minerva-vision" }

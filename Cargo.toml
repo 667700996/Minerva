@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "apps/minerva-cli",
+    "crates/minerva-types",
+    "crates/minerva-controller",
+    "crates/minerva-vision",
+    "crates/minerva-engine",
+    "crates/minerva-orchestrator",
+    "crates/minerva-network",
+    "crates/minerva-ops",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+authors = ["Minerva Project Contributors"]
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.36", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+uuid = { version = "1.6", features = ["serde", "v4"] }
+thiserror = "1.0"
+async-stream = "0.3"
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[workspace.metadata]
+description = "Rust workspace for the Minerva Android emulator-based Janggi bot system."
