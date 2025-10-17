@@ -8,6 +8,7 @@ template_dir = "assets/templates"
 confidence_threshold = 0.95
 refresh_interval_ms = 500
 capture_dir = "captures"
+tile_capture_dir = "captures/tiles"
 
 [engine]
 threads = 1

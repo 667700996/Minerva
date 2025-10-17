@@ -118,6 +118,7 @@ fn default_config() -> MinervaConfig {
             confidence_threshold: 0.95,
             refresh_interval_ms: 500,
             capture_dir: Some("captures".into()),
+            tile_capture_dir: Some("captures/tiles".into()),
         },
         engine: EngineConfig {
             threads: 1,

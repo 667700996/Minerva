@@ -21,6 +21,8 @@ pub struct VisionConfig {
     pub refresh_interval_ms: u64,
     #[serde(default)]
     pub capture_dir: Option<String>,
+    #[serde(default)]
+    pub tile_capture_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,6 +131,7 @@ mod tests {
                 confidence_threshold: 0.9,
                 refresh_interval_ms: 250,
                 capture_dir: Some("captures".into()),
+                tile_capture_dir: Some("captures/tiles".into()),
             },
             engine: EngineConfig {
                 threads: 2,
@@ -183,6 +186,7 @@ mod tests {
                 confidence_threshold: 0.5,
                 refresh_interval_ms: 250,
                 capture_dir: None,
+                tile_capture_dir: None,
             },
             engine: EngineConfig {
                 threads: 0,
