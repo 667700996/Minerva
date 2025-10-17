@@ -1,3 +1,5 @@
+use std::env;
+
 use anyhow::Result;
 use minerva_controller::MockController;
 use minerva_engine::NullEngine;
@@ -15,7 +17,7 @@ use minerva_vision::TemplateMatchingRecognizer;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = default_config();
+    let config = load_config();
     let controller = MockController::new(config.emulator.clone());
     let recognizer = TemplateMatchingRecognizer::new();
     let engine = NullEngine::new();
@@ -34,6 +36,24 @@ async fn main() -> Result<()> {
     orchestrator.boot(&config).await?;
     orchestrator.run().await?;
     Ok(())
+}
+
+fn load_config() -> MinervaConfig {
+    let from_env = env::var("MINERVA_CONFIG").ok();
+    let from_args = env::args().nth(1);
+    let path = from_args
+        .or(from_env)
+        .unwrap_or_else(|| "configs/dev.toml".into());
+    match MinervaConfig::from_file(&path) {
+        Ok(cfg) => cfg,
+        Err(err) => {
+            eprintln!(
+                "Failed to load config from '{}': {err}. Falling back to internal defaults.",
+                path
+            );
+            default_config()
+        }
+    }
 }
 
 fn default_config() -> MinervaConfig {

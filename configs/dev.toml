@@ -1,0 +1,25 @@
+[emulator]
+serial = "127.0.0.1:5555"
+socket = "127.0.0.1:5555"
+fixed_resolution = [1080, 1920]
+
+[vision]
+template_dir = "assets/templates"
+confidence_threshold = 0.95
+refresh_interval_ms = 500
+
+[engine]
+threads = 1
+max_depth = 1
+
+[network]
+bind_addr = "127.0.0.1"
+websocket_port = 3000
+
+[ops]
+log_level = "info"
+telemetry_dir = "telemetry"
+
+[orchestrator]
+time_control = { mode = "Blitz", base_ms = 600000, increment_ms = 0, max_depth_hint = 10 }
+max_retries = 3

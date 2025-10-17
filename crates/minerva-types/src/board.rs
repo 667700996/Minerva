@@ -83,3 +83,23 @@ impl BoardState {
             .and_then(|idx| self.pieces.get(idx).copied().flatten())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_bounds() {
+        let board = BoardState::empty();
+        let valid = Square::new(2, 3);
+        let invalid = Square::new(9, 9);
+        assert!(board.index(valid).is_some());
+        assert!(board.index(invalid).is_none());
+    }
+
+    #[test]
+    fn opponent_switch() {
+        assert_eq!(PlayerSide::Blue.opponent(), PlayerSide::Red);
+        assert_eq!(PlayerSide::Red.opponent(), PlayerSide::Blue);
+    }
+}

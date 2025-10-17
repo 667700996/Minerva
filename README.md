@@ -26,10 +26,16 @@ docs/architecture.md       # Extended crate responsibilities
    cargo check
    ```
 
-3. Run the development CLI (currently a mock pipeline):
+3. Run the unit tests:
 
    ```bash
-   cargo run -p minerva-cli
+   cargo test
+   ```
+
+4. Run the development CLI (currently a mock pipeline). Configuration is read from TOML; by default `configs/dev.toml` is used, or pass a different path / set `MINERVA_CONFIG`.
+
+   ```bash
+   cargo run -p minerva-cli -- configs/dev.toml
    ```
 
    The CLI boots the orchestrator with mock components, providing a starting point for integrating real controller, vision, and engine backends.
@@ -38,5 +44,5 @@ docs/architecture.md       # Extended crate responsibilities
 
 - Replace `MockController`, `TemplateMatchingRecognizer`, and `NullEngine` with production implementations.
 - Flesh out telemetry persistence and networking protocols.
-- Wire configuration loading (e.g., TOML/JSON) instead of inline defaults.
+- Expand validation and error handling around configuration I/O.
 - Add unit/integration tests per crate as subsystems mature.

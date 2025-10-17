@@ -30,6 +30,7 @@ uuid = { version = "1.6", features = ["serde", "v4"] }
 thiserror = "1.0"
 async-stream = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
+toml = "0.8"
 
 [workspace.metadata]
 description = "Rust workspace for the Minerva Android emulator-based Janggi bot system."

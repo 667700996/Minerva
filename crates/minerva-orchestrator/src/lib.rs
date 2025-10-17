@@ -141,10 +141,28 @@ where
     N: RealtimeServer + Send + Sync,
 {
     async fn run(&mut self) -> Result<()> {
+        let start_event = SystemEvent::new(
+            EventKind::Lifecycle,
+            EventPayload::Lifecycle(LifecycleEvent {
+                phase: LifecyclePhase::MatchStart,
+                details: Some("mock match started".into()),
+            }),
+        );
+        self.publish(start_event).await?;
+
         for turn in 0..self.config.max_retries {
             info!("Executing turn {}", turn);
             self.play_turn().await?;
         }
+
+        let end_event = SystemEvent::new(
+            EventKind::Lifecycle,
+            EventPayload::Lifecycle(LifecycleEvent {
+                phase: LifecyclePhase::MatchEnd,
+                details: Some("mock match completed".into()),
+            }),
+        );
+        self.publish(end_event).await?;
         Ok(())
     }
 }
