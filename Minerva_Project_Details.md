@@ -1,194 +1,194 @@
-# 안드로이드 에뮬레이터 기반 장기(將棋/장기) 봇 시스템 개발 계획서
-> 코드네임: Minerva  
-> 목표: 최소 아마 1단 ~ 최대 프로 9단(무제한 확장 스케일) 성능. “로컬 봇 vs. 인간(원격)” 실전 서비스.
+# Android Emulator-Based Janggi Bot System Development Plan
+> Codename: Minerva  
+> Objective: Reach at least amateur 1-dan strength and scale up to professional 9-dan via iterative upgrades. Deliver a “local bot vs. remote human” live service.
 
 --------------------------------------------------------------------------------
 
-## 1. 프로젝트 개요
+## 1. Project Overview
 
-1) 프로젝트 명
-- 코드네임: Minerva
+1) Project Name  
+- Codename: Minerva
 
-2) 최종 산출물
-- (A) 에뮬레이터 장기 앱을 ADB로 제어하는 자율 대국 에이전트  
-- (B) 실시간 관전/대국/리뷰 프런트엔드(웹/모바일)  
-- (C) 분석 파이프라인(로그/리플레이/성능 대시보드)
+2) Final Deliverables  
+- (A) Autonomous match-playing agent that controls the emulator Janggi app via ADB  
+- (B) Real-time spectating/playing/review front-end (web/mobile)  
+- (C) Analytics pipeline (logs/replays/performance dashboard)
 
-3) 핵심 성능 목표(KPI)
-- Elo/승률: 아마 1단 안정 초과 → 상위 아마권(>75%) → 준프로/프로 스케일  
-- 지연: 관측→결정→입력 왕복 250~1500ms(모드별)  
-- 인식 정확도: 보드/말 상태 ≥99% (실전 UI·애니메이션 포함)  
-- 확장성: NNUE/분산 탐색/EGTB/개시북 확장으로 9단 스케일까지
-
---------------------------------------------------------------------------------
-
-## 2. 전체 아키텍처(Top-Level)
-
-- Emulator(장기 앱) ←ADB I/O→ Controller(입력 주입·스크린 캡처)  
-- Controller → Vision(보드 정합·말 인식) → Engine(탐색·평가)  
-- Orchestrator(턴·동기화·시간관리) ↔ Net(Server/WebSocket) ↔ Client(UI)  
-- Ops(로그·리플레이·대시보드·CI/CD)
+3) Key Performance Indicators (KPI)  
+- Elo/Win Rate: Surpass stable amateur 1-dan → top amateur tier (>75%) → scalable to pro level  
+- Latency: Observation → decision → input roundtrip between 250–1500 ms depending on mode  
+- Recognition Accuracy: ≥99% on board/piece state with production UI & animations  
+- Scalability: Expandable to 9-dan via NNUE, distributed search, endgame tablebases, opening books
 
 --------------------------------------------------------------------------------
 
-## 3. ADB 접속/입력 프로토콜(포트: 127.0.0.1:5555 기준)
+## 2. Top-Level Architecture
 
-1) 장치 연결/확인  
+- Emulator (Janggi app) ←ADB I/O→ Controller (input injection & screen capture)  
+- Controller → Vision (board alignment & piece recognition) → Engine (search & evaluation)  
+- Orchestrator (turn loop, synchronization, time management) ↔ Net (Server/WebSocket) ↔ Client (UI)  
+- Ops (logging, replay, dashboard, CI/CD)
+
+--------------------------------------------------------------------------------
+
+## 3. ADB Connection/Input Protocol (default: 127.0.0.1:5555)
+
+1) Device Setup  
 - `adb kill-server && adb start-server`  
 - `adb connect 127.0.0.1:5555`  
-- `adb devices -l` → `127.0.0.1:5555` 또는 `emulator-5554`
+- `adb devices -l` → expect `127.0.0.1:5555` or `emulator-5554`
 
-2) 화면 캡처(택1)  
-- 단샷: `adb -s 127.0.0.1:5555 exec-out screencap -p > frame.png`  
-- 고속: minicap 소켓 스트림(선택), 필요 시 ZSTD 파이프
+2) Screen Capture (choose one)  
+- Single capture: `adb -s 127.0.0.1:5555 exec-out screencap -p > frame.png`  
+- High speed: minicap socket stream (optional), optionally piped through ZSTD
 
-3) 입력 주입  
-- 탭:  `adb -s 127.0.0.1:5555 shell input tap {x} {y}`  
-- 드래그: `adb -s ... shell input swipe {x1} {y1} {x2} {y2} {ms}`  
-- 키:  `adb -s ... shell input keyevent {CODE}`
+3) Input Injection  
+- Tap:  `adb -s 127.0.0.1:5555 shell input tap {x} {y}`  
+- Drag: `adb -s ... shell input swipe {x1} {y1} {x2} {y2} {ms}`  
+- Key:  `adb -s ... shell input keyevent {CODE}`
 
-4) 안정화 팁  
-- 고정 해상도 AVD 프로파일(내비/상태바 구성 고정)  
-- 애니메이션/광고 팝업 템플릿 감지 → 자동 닫기  
-- FPS/지연 측정: 캡처~입력 왕복 평균/최대치 로그화
+4) Stabilization Tips  
+- Fixed-resolution AVD profile (stable navigation/status-bar layout)  
+- Detect template animations/ads → auto-dismiss  
+- Log FPS/latency from capture to input for average/peak monitoring
 
-▶ 참고 스니펫(BlueStacks ADB AppleScript, 동일 포트 사용)
--- BlueStacks ADB 자동 입력 AppleScript  
--- Command + . 로 중단 가능  
-property serial : "127.0.0.1:5555"  
-on sh(cmd)  
-  set envPATH to "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"  
-  do shell script envPATH & " " & cmd  
-end sh  
-on adb(cmd)  
-  sh("adb " & cmd)  
-end adb  
-on tapXY(x, y)  
-  adb("-s " & serial & " shell input tap " & x & " " & y)  
+▶ Reference snippet (BlueStacks ADB AppleScript on the same port)
+-- BlueStacks ADB automatic input AppleScript  
+-- Command + . to stop  
+```
+property serial : "127.0.0.1:5555"
+on sh(cmd)
+  set envPATH to "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  do shell script envPATH & " " & cmd
+end sh
+on adb(cmd)
+  sh("adb " & cmd)
+end adb
+on tapXY(x, y)
+  adb("-s " & serial & " shell input tap " & x & " " & y)
 end tapXY
+```
 
 --------------------------------------------------------------------------------
 
-## 4. 비전(판상태 인식) 설계
+## 4. Vision (Board State Recognition) Design
 
-1) 보드 정합(초기 1회 또는 자동)
-- 앵커 템플릿(로고/메뉴)→보정 오프셋 산출  
-- 혹은 4-코너 수동 캘리브레이션 → 호모그래피(H)로 원근 보정  
-- 9×10 그리드 매핑테이블: (파일/프로파일별 캐시)
+1) Board Alignment (initial or automatic)  
+- Anchor templates (logos/menu) → compute correction offsets  
+- Or manual four-corner calibration → compute homography (H) for perspective correction  
+- 9×10 grid mapping table: cached per file/profile
 
-2) 말 인식 파이프라인
-- V0(빠른 POC): 타일 단위 템플릿 매칭(문자/색) + 컬러 히스토그램  
-- V1(강건성): 소형 CNN/ViT 분류기(압축/블러/폰트/이펙트 대응)  
-- 증분 업데이트: 프레임 간 변화 칸만 재추론, 신뢰도<τ 시 재촬영
+2) Piece Recognition Pipeline  
+- V0 (fast PoC): tile-level template matching (characters/colors) + color histogram  
+- V1 (robust): small CNN/ViT classifier (handles compression, blur, fonts, FX)  
+- Incremental updates: re-evaluate only changed tiles between frames; re-capture if confidence < τ
 
-3) 출력 포맷  
-- 내부 상태: 비트보드/압축 배열  
-- 교환 포맷: FEN-유사 문자열 + side-to-move + 캐스팅/특수권리(해당 룰 기준)
-
---------------------------------------------------------------------------------
-
-## 5. 엔진(탐색·평가) 설계 — 9단 스케일 옵션 포함
-
-1) 코어 탐색  
-- ID(1→N ply), Alpha-Beta + PVS  
-- Transposition Table(TT, Zobrist 해싱, N-way replacement)  
-- Quiescence Search(체크/핵심 캡처), Aspiration Window  
-- Move Ordering: PV→TT→체크/캡처→히스토리/킬러→정렬  
-- LMR/LMP, SEE, Null-Move Pruning(NMP), IID, Re-Search
-
-2) 평가함수  
-- 물질가중 + 위치/활동 + 왕 안전(궁성 제어) + 졸병/포/차/마 상호작용  
-- 국면 단계(개시/중반/종반) 가중 전환, 패턴/구조 보너스  
-- 파라미터 튜닝: SPSA/블랙박스 최적화
-
-3) 확장(프로 스케일)  
-- NNUE/경량 ViT 평가(ONNX, INT8/AVX2/AVX-512)  
-- 개시북(수동/자가대국 통계 기반 가중), EGTB(소말/단순형 우선)  
-- 멀티코어 병렬(YBWC), 분산 탐색(클러스터 PV-Split)  
-- 시간관리: 남은시간·증분 기반 동적 깊이 + PV 안정도 피드백
+3) Output Format  
+- Internal state: bitboards/compact arrays  
+- Exchange format: FEN-like string + side-to-move + castling/privileges aligned with Janggi rules
 
 --------------------------------------------------------------------------------
 
-## 6. 오케스트레이션/동기화
+## 5. Engine (Search & Evaluation) Design — scalable to pro 9-dan
 
-1) 게임 루프 상태머신  
-- READY → OUR_TURN → THINK → ACT(ADB) → VERIFY → OPP_TURN  
-- VERIFY: 적용 후 스냅샷 재인식→기대 상태와 δ 비교→불일치 시 롤백/재탭
+1) Core Search  
+- Iterative Deepening (1→N ply), Alpha-Beta + PVS  
+- Transposition Table (TT, Zobrist hashing, N-way replacement)  
+- Quiescence Search (checks/core captures), Aspiration Window  
+- Move Ordering: PV → TT → checks/captures → history/killer → sorted  
+- LMR/LMP, SEE, Null-Move Pruning (NMP), IID, Re-search
 
-2) 예외 복구  
-- 팝업/광고: 템플릿 감지→닫기  
-- 애니메이션: 프레임 차(norm) 임계치 하강까지 대기  
-- 좌표 오프셋 변동: 앵커 재탐지→그리드 재생성
+2) Evaluation Function  
+- Material weights + positional/activity + king safety (palace control) + pawn/cannon/chariot/horse interactions  
+- Phase interpolation (opening/midgame/endgame) with pattern/structure bonuses  
+- Parameter tuning via SPSA/black-box optimization
 
-3) 시간/지연 관리  
-- 모드별 예산: 블리츠(≤250ms) / 래피드(≤1000ms) / 클래식(가변)  
-- 탐색 중도 중단(Stop Signal)→최선 PV 즉시 커밋
-
---------------------------------------------------------------------------------
-
-## 7. 네트워킹/클라이언트
-
-1) 서버  
-- WebSocket 실시간 보드/수순/시계/메타  
-- 세션/권한/관전/리플레이 API
-
-2) 클라이언트(UI)  
-- 보드 뷰, 후보수/추천수, 변화도 트리, 해설(텍스트), 승률 그래프  
-- 리뷰: blunder/mistake/inaccuracy 태깅, 자동 코멘터리
+3) Scaling Extensions (pro level)  
+- NNUE/lightweight ViT evaluation (ONNX, INT8/AVX2/AVX-512)  
+- Opening book (manual/self-play statistics), EGTB (priority on simple endgames)  
+- Multi-core parallelism (YBWC), distributed search (cluster PV-split)  
+- Time management: remaining time + increment-based adaptive depth + PV stability feedback
 
 --------------------------------------------------------------------------------
 
-## 8. 운영/품질/보안
+## 6. Orchestration/Synchronization
 
-1) 로깅/리플레이  
-- 프레임/보정H/상태/엔진통계(NPS, depth, nodes)·입력좌표·지연(ms)  
-- 리플레이 엔진(동일 시드/프레임으로 재현)
+1) Game Loop State Machine  
+- READY → OUR_TURN → THINK → ACT (ADB) → VERIFY → OPP_TURN  
+- VERIFY: capture after input → re-recognize → compare with expected state → retry/tap again if mismatch
 
-2) 테스트  
-- 규칙/합법수 유닛, 인식 회귀셋(다양 스킨/해상도), 엔진 정답셋  
-- 자가대국 리그(A/B/C 설정), 회귀 성능 게이팅
+2) Exception Recovery  
+- Pop-up/advertisements: template detection → auto-close  
+- Animations: wait until frame difference (norm) drops below threshold  
+- Coordinate offset drift: re-detect anchors → rebuild grid
 
-3) 보안  
-- 로컬 ADB 제한, 포트 방화벽, 인증토큰(원격 UI)
-
---------------------------------------------------------------------------------
-
-## 9. 개발 일정(마일스톤)
-
-- M0(주 1): 킥오프/요건 동결/환경세팅, ADB 연결 검증(127.0.0.1:5555)  
-- M1(주 2~3): 캡처/입력 루프, 고정 좌표 탭 성공률>99%, 지연 계측  
-- M2(주 4~5): 보드 정합 + 템플릿 인식 V0(정확도>98%), 상태 동기화  
-- M3(주 6~7): 엔진 V0(AB+ID+TT+QSearch), 아마 1~3단  
-- M4(주 8~9): LMR/NMP/SEE/Ordering·시간관리, 개시북 V0 → 상위 아마권  
-- M5(주10~12): NNUE/멀티스레드/EGTB 일부 → 준프로/프로 스케일  
-- M6(주13+): 분산 탐색·북/EGTB 확장·자가학습 대규모 → 9단 스케일  
-
-*기간은 리소스/데이터/앱 UI에 따라 변동 가능*
+3) Time/Latency Management  
+- Mode budgets: blitz (≤250 ms) / rapid (≤1000 ms) / classic (flexible)  
+- Early stop signal during search → immediately commit best PV
 
 --------------------------------------------------------------------------------
 
-## 10. 환경/표준
+## 7. Networking/Client
 
-- ADB 포트: 127.0.0.1:5555(고정), 다중 세션 시 5556+ 확장  
-- 해상도: 1080×1920 또는 1440×2560  
-- OS: Linux(엔진), macOS/Windows(개발), Docker 지원  
-- 빌드: C++(엔진) + Python(비전/오케스트레이션) + TS(프런트)  
-- 추론: ONNX Runtime(옵션), AVX2/AVX-512 최적화
+1) Server  
+- WebSocket real-time board/moves/clocks/metadata  
+- Session/auth/spectating/replay APIs
 
---------------------------------------------------------------------------------
-
-## 11. 리스크/대응
-
-- 앱 UI 업데이트 → 앵커 다중 템플릿/자동 재학습 파이프  
-- 프레임 드롭/지연 → minicap/minitouch, 스레딩/버퍼링  
-- 오입력/팝업 → 템플릿 사전, 재탭/재촬영/롤백 시나리오
+2) Client (UI)  
+- Board view, candidate moves, variation tree, commentary text, win-rate graph  
+- Review: automatic tagging (blunder/mistake/inaccuracy), auto-generated commentary
 
 --------------------------------------------------------------------------------
 
-## 12. 유지보수/확장
+## 8. Operations/Quality/Security
 
-- 룰/앱 이식성: 템플릿·룰 테이블 분리  
-- 성능 확장: NNUE→분산 탐색→EGTB→자가학습 단계적 투입  
-- 데이터 자가대국 기반 지속 튜닝  
+1) Logging/Replay  
+- Capture frame/alignment H/state/engine stats (NPS, depth, nodes) + input coordinates + latency (ms)  
+- Replay engine: reproduce with same seeds/frames
 
-# 끝.
+2) Testing  
+- Rule/legal move unit tests, recognition regression set (varied skins/resolutions), engine answer set  
+- Self-play leagues (A/B/C settings), regression performance gating
+
+3) Security  
+- Restrict local ADB, firewall ports, authentication tokens (remote UI)
+
+--------------------------------------------------------------------------------
+
+## 9. Development Timeline (Milestones)
+
+- M0 (Week 1): Kickoff, requirement freeze, environment setup, verify ADB connection (127.0.0.1:5555)  
+- M1 (Weeks 2–3): Capture/input loop, fixed-coordinate tap success >99%, latency measurement  
+- M2 (Weeks 4–5): Board alignment + template recognition V0 (accuracy >98%), state synchronization  
+- M3 (Weeks 6–7): Engine V0 (AB+ID+TT+QSearch), reach amateur 1–3 dan  
+- M4 (Weeks 8–9): LMR/NMP/SEE/ordering + time management, opening book V0 → top amateur tier  
+- M5 (Weeks 10–12): NNUE/multi-threading/partial EGTB → near pro strength  
+- M6 (Week 13+): Distributed search + expanded book/EGTB + large-scale self-play → pro 9-dan scale  
+
+*Duration may vary depending on resources/data/app UI updates.*
+
+--------------------------------------------------------------------------------
+
+## 10. Environment/Standards
+
+- ADB Port: 127.0.0.1:5555 (fixed), scale to 5556+ for multiple sessions  
+- Resolution: 1080×1920 or 1440×2560  
+- OS: Linux (engine), macOS/Windows (development), Docker support  
+- Stack: C++ (engine) + Python (vision/orchestration) + TypeScript (front-end)  
+- Inference: ONNX Runtime (optional), AVX2/AVX-512 optimizations
+
+--------------------------------------------------------------------------------
+
+## 11. Risks/Mitigations
+
+- App UI updates → maintain multiple anchor templates/automated retraining pipeline  
+- Frame drops/latency spikes → minicap/minitouch, threading/buffering  
+- Mis-taps/pop-ups → template library, re-tap/re-capture/rollback scenarios
+
+--------------------------------------------------------------------------------
+
+## 12. Maintenance/Expansion
+
+- Rule/app portability: isolate templates/rule tables  
+- Performance upgrades: staged rollout from NNUE → distributed search → EGTB → self-learning  
+- Continuous tuning via self-play data  
