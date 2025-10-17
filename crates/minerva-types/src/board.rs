@@ -160,6 +160,40 @@ impl BoardState {
         diffs
     }
 
+    pub fn infer_move_from_diffs(
+        diffs: &[BoardDiff],
+    ) -> Option<(Square, Square, Piece, Option<Piece>)> {
+        let mut from_square = None;
+        let mut to_square = None;
+        let mut moving_piece = None;
+        let mut captured_piece = None;
+
+        for diff in diffs {
+            match (diff.before, diff.after) {
+                (Some(before), None) => {
+                    from_square = Some(diff.square);
+                    moving_piece = Some(before);
+                }
+                (None, Some(after)) => {
+                    to_square = Some(diff.square);
+                    moving_piece = Some(after);
+                }
+                (Some(before), Some(after)) if before != after => {
+                    to_square = Some(diff.square);
+                    moving_piece = Some(after);
+                    captured_piece = Some(before);
+                }
+                _ => {}
+            }
+        }
+
+        if let (Some(from), Some(to), Some(piece)) = (from_square, to_square, moving_piece) {
+            Some((from, to, piece, captured_piece))
+        } else {
+            None
+        }
+    }
+
     fn setup_initial_positions(&mut self) {
         use PieceKind::*;
 
@@ -280,5 +314,8 @@ mod tests {
         b.move_piece(from, to).unwrap();
         let diffs = a.differences(&b);
         assert_eq!(diffs.len(), 2);
+        let inferred = BoardState::infer_move_from_diffs(&diffs).expect("infer move");
+        assert_eq!(inferred.0, from);
+        assert_eq!(inferred.1, to);
     }
 }
