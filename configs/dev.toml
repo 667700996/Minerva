@@ -23,3 +23,4 @@ telemetry_dir = "telemetry"
 [orchestrator]
 time_control = { mode = "Blitz", base_ms = 600000, increment_ms = 0, max_depth_hint = 10 }
 max_retries = 3
+formation = "MasangMasang"

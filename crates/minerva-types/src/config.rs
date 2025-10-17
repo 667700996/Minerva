@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{MinervaError, Result};
 
-use crate::time_control::TimeControl;
+use crate::{time_control::TimeControl, ui::FormationPreset};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmulatorConfig {
@@ -45,6 +45,8 @@ pub struct OpsConfig {
 pub struct OrchestratorConfig {
     pub time_control: TimeControl,
     pub max_retries: u8,
+    #[serde(default)]
+    pub formation: FormationPreset,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,35 @@ impl MinervaConfig {
                 path_ref.display()
             ))
         })
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.engine.threads == 0 {
+            return Err(MinervaError::Configuration(
+                "engine.threads must be greater than zero".into(),
+            ));
+        }
+        if self.engine.max_depth == 0 {
+            return Err(MinervaError::Configuration(
+                "engine.max_depth must be greater than zero".into(),
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.vision.confidence_threshold) {
+            return Err(MinervaError::Configuration(
+                "vision.confidence_threshold must be between 0.0 and 1.0".into(),
+            ));
+        }
+        if self.network.websocket_port == 0 {
+            return Err(MinervaError::Configuration(
+                "network.websocket_port must be a valid port (>0)".into(),
+            ));
+        }
+        if self.orchestrator.max_retries == 0 {
+            return Err(MinervaError::Configuration(
+                "orchestrator.max_retries must be greater than zero".into(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -118,6 +149,7 @@ mod tests {
                     max_depth_hint: Some(12),
                 },
                 max_retries: 2,
+                formation: FormationPreset::SangMasangMa,
             },
         };
 
@@ -130,6 +162,59 @@ mod tests {
             loaded.orchestrator.max_retries,
             config.orchestrator.max_retries
         );
+        assert_eq!(loaded.orchestrator.formation, config.orchestrator.formation);
         fs::remove_file(&temp_path).expect("cleanup temp config");
+    }
+
+    #[test]
+    fn validate_configuration_rules() {
+        let mut config = MinervaConfig {
+            emulator: EmulatorConfig {
+                serial: "device".into(),
+                socket: "device".into(),
+                fixed_resolution: None,
+                adb_path: None,
+            },
+            vision: VisionConfig {
+                template_dir: "templates".into(),
+                confidence_threshold: 0.5,
+                refresh_interval_ms: 250,
+            },
+            engine: EngineConfig {
+                threads: 0,
+                max_depth: 1,
+                nnue_path: None,
+            },
+            network: NetworkConfig {
+                bind_addr: "0.0.0.0".into(),
+                websocket_port: 3000,
+                auth_token: None,
+            },
+            ops: OpsConfig {
+                log_level: "info".into(),
+                telemetry_dir: "telemetry".into(),
+            },
+            orchestrator: OrchestratorConfig {
+                time_control: TimeControl::blitz(),
+                max_retries: 1,
+                formation: FormationPreset::default(),
+            },
+        };
+
+        assert!(config.validate().is_err());
+        config.engine.threads = 2;
+        config.engine.max_depth = 0;
+        assert!(config.validate().is_err());
+        config.engine.max_depth = 4;
+        config.vision.confidence_threshold = 1.5;
+        assert!(config.validate().is_err());
+        config.vision.confidence_threshold = 0.9;
+        config.network.websocket_port = 0;
+        assert!(config.validate().is_err());
+        config.network.websocket_port = 3000;
+        config.orchestrator.max_retries = 0;
+        assert!(config.validate().is_err());
+        config.orchestrator.max_retries = 1;
+        assert!(config.validate().is_ok());
     }
 }

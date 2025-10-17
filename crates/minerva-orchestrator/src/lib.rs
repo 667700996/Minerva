@@ -1,7 +1,9 @@
 //! High-level orchestrator coordinating controller, vision, and engine.
 
 use async_trait::async_trait;
-use minerva_controller::DeviceController;
+use minerva_controller::{
+    formation_action, formation_confirm_action, start_flow_action, DeviceController,
+};
 use minerva_engine::GameEngine;
 use minerva_network::RealtimeServer;
 use minerva_ops::{ensure_telemetry_dir, init_tracing, TelemetryStore};
@@ -10,6 +12,7 @@ use minerva_types::{
     events::{EngineEvent, EventKind, EventPayload, LifecycleEvent, LifecyclePhase, SystemEvent},
     game::{GameSnapshot, Move, TurnContext},
     telemetry::EngineMetrics,
+    ui::{FormationPreset, StartFlowStep},
     vision::ImageFrame,
     MinervaError, Result,
 };
@@ -62,6 +65,7 @@ where
         ensure_telemetry_dir(&full_config.ops.telemetry_dir)?;
 
         self.controller.connect().await?;
+        self.perform_start_sequence(self.config.formation).await?;
         self.engine.warm_up().await?;
         self.network.run().await?;
 
@@ -123,6 +127,28 @@ where
         let cloned = event.clone();
         self.network.publish(event).await?;
         self.telemetry.record_event(cloned).await?;
+        Ok(())
+    }
+
+    async fn perform_start_sequence(&mut self, formation: FormationPreset) -> Result<()> {
+        self.controller
+            .inject_actions(vec![
+                start_flow_action(StartFlowStep::Apply),
+                start_flow_action(StartFlowStep::ConfirmYes),
+                start_flow_action(StartFlowStep::ConfirmOk),
+            ])
+            .await?;
+
+        sleep(Duration::from_millis(150)).await;
+
+        self.controller
+            .inject_actions(vec![
+                formation_action(formation),
+                formation_confirm_action(),
+            ])
+            .await?;
+
+        sleep(Duration::from_millis(150)).await;
         Ok(())
     }
 }

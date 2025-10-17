@@ -12,6 +12,7 @@ use minerva_types::{
         VisionConfig,
     },
     time_control::TimeControl,
+    ui::FormationPreset,
 };
 use minerva_vision::TemplateMatchingRecognizer;
 
@@ -45,7 +46,17 @@ fn load_config() -> MinervaConfig {
         .or(from_env)
         .unwrap_or_else(|| "configs/dev.toml".into());
     match MinervaConfig::from_file(&path) {
-        Ok(cfg) => cfg,
+        Ok(cfg) => {
+            if let Err(err) = cfg.validate() {
+                eprintln!(
+                    "Invalid config in '{}': {err}. Falling back to internal defaults.",
+                    path
+                );
+                default_config()
+            } else {
+                cfg
+            }
+        }
         Err(err) => {
             eprintln!(
                 "Failed to load config from '{}': {err}. Falling back to internal defaults.",
@@ -57,7 +68,7 @@ fn load_config() -> MinervaConfig {
 }
 
 fn default_config() -> MinervaConfig {
-    MinervaConfig {
+    let config = MinervaConfig {
         emulator: EmulatorConfig {
             serial: "127.0.0.1:5555".into(),
             socket: "127.0.0.1:5555".into(),
@@ -86,6 +97,9 @@ fn default_config() -> MinervaConfig {
         orchestrator: OrchestratorConfig {
             time_control: TimeControl::blitz(),
             max_retries: 3,
+            formation: FormationPreset::MasangMasang,
         },
-    }
+    };
+    debug_assert!(config.validate().is_ok());
+    config
 }
