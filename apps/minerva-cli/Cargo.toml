@@ -11,6 +11,9 @@ serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+futures.workspace = true
+crossterm.workspace = true
+ratatui.workspace = true
 minerva-orchestrator = { path = "../../crates/minerva-orchestrator" }
 minerva-ops = { path = "../../crates/minerva-ops" }
 minerva-controller = { path = "../../crates/minerva-controller" }

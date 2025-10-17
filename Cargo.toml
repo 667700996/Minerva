@@ -31,6 +31,8 @@ thiserror = "1.0"
 async-stream = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
 toml = "0.8"
+crossterm = "0.27"
+ratatui = "0.26"
 
 [workspace.metadata]
 description = "Rust workspace for the Minerva Android emulator-based Janggi bot system."
