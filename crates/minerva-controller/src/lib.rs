@@ -8,7 +8,15 @@ use std::{
 use async_trait::async_trait;
 use chrono::Utc;
 use minerva_types::{
-    board::Square, config::EmulatorConfig, telemetry::LatencySample, vision::ImageFrame,
+    board::Square,
+    config::EmulatorConfig,
+    telemetry::LatencySample,
+    ui::{
+        square_to_point, Point, FORMATION_CONFIRM, FORMATION_MASANG_MASANG,
+        FORMATION_MASANG_SANG_MA, FORMATION_SANG_MASANG_MA, FORMATION_SANG_MA_MA_SANG, START_APPLY,
+        START_CONFIRM_OK, START_CONFIRM_YES,
+    },
+    vision::ImageFrame,
     MinervaError, Result,
 };
 use tokio::time::{sleep, Duration};
@@ -44,6 +52,7 @@ pub trait DeviceController: Send + Sync {
     async fn connect(&mut self) -> Result<()>;
     async fn capture_frame(&self) -> Result<ImageFrame>;
     async fn tap_square(&self, square: Square) -> Result<()>;
+    async fn tap_point(&self, point: Point) -> Result<()>;
     async fn inject_actions(&self, actions: Vec<InputAction>) -> Result<()>;
     fn metrics(&self) -> ControllerMetrics;
 }
@@ -78,9 +87,25 @@ impl DeviceController for MockController {
     }
 
     async fn tap_square(&self, square: Square) -> Result<()> {
-        info!("Mock tap on square ({}, {})", square.file, square.rank);
-        sleep(Duration::from_millis(10)).await;
-        Ok(())
+        let point = square_to_point(square).ok_or_else(|| {
+            controller_error(format!(
+                "square out of bounds: file={}, rank={}",
+                square.file, square.rank
+            ))
+        })?;
+        info!(
+            "Mock tap on square ({}, {}) -> ({}, {})",
+            square.file, square.rank, point.x, point.y
+        );
+        self.tap_point(point).await
+    }
+
+    async fn tap_point(&self, point: Point) -> Result<()> {
+        self.inject_actions(vec![InputAction::Tap {
+            x: point.x,
+            y: point.y,
+        }])
+        .await
     }
 
     async fn inject_actions(&self, actions: Vec<InputAction>) -> Result<()> {
@@ -135,5 +160,75 @@ pub fn ensure_actions_present(actions: &[InputAction]) -> Result<()> {
         Err(controller_error("no input actions specified"))
     } else {
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum StartFlowStep {
+    Apply,
+    ConfirmYes,
+    ConfirmOk,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum FormationChoice {
+    MasangMasang,
+    SangMasangMa,
+    MasangSangMa,
+    SangMaMaSang,
+    Confirm,
+}
+
+fn point_to_action(point: Point) -> InputAction {
+    InputAction::Tap {
+        x: point.x,
+        y: point.y,
+    }
+}
+
+pub fn start_flow_action(step: StartFlowStep) -> InputAction {
+    let point = match step {
+        StartFlowStep::Apply => START_APPLY,
+        StartFlowStep::ConfirmYes => START_CONFIRM_YES,
+        StartFlowStep::ConfirmOk => START_CONFIRM_OK,
+    };
+    point_to_action(point)
+}
+
+pub fn formation_action(choice: FormationChoice) -> InputAction {
+    let point = match choice {
+        FormationChoice::MasangMasang => FORMATION_MASANG_MASANG,
+        FormationChoice::SangMasangMa => FORMATION_SANG_MASANG_MA,
+        FormationChoice::MasangSangMa => FORMATION_MASANG_SANG_MA,
+        FormationChoice::SangMaMaSang => FORMATION_SANG_MA_MA_SANG,
+        FormationChoice::Confirm => FORMATION_CONFIRM,
+    };
+    point_to_action(point)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn start_flow_action_points() {
+        let action = start_flow_action(StartFlowStep::Apply);
+        match action {
+            InputAction::Tap { x, y } => {
+                assert_eq!((x, y), (START_APPLY.x, START_APPLY.y));
+            }
+            _ => panic!("unexpected action"),
+        }
+    }
+
+    #[test]
+    fn formation_action_points() {
+        let action = formation_action(FormationChoice::Confirm);
+        match action {
+            InputAction::Tap { x, y } => {
+                assert_eq!((x, y), (FORMATION_CONFIRM.x, FORMATION_CONFIRM.y));
+            }
+            _ => panic!("unexpected action"),
+        }
     }
 }
