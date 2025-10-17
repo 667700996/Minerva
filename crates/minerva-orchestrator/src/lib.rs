@@ -8,6 +8,7 @@ use minerva_engine::GameEngine;
 use minerva_network::RealtimeServer;
 use minerva_ops::{ensure_telemetry_dir, init_tracing, TelemetryStore};
 use minerva_types::{
+    board::BoardDiff,
     config::{MinervaConfig, OrchestratorConfig},
     events::{EngineEvent, EventKind, EventPayload, LifecycleEvent, LifecyclePhase, SystemEvent},
     game::{GameSnapshot, Move, TurnContext},
@@ -33,6 +34,7 @@ where
     network: N,
     telemetry: TelemetryStore,
     config: OrchestratorConfig,
+    last_snapshot: Option<GameSnapshot>,
 }
 
 impl<C, V, E, N> Orchestrator<C, V, E, N>
@@ -57,6 +59,7 @@ where
             network,
             telemetry,
             config,
+            last_snapshot: None,
         }
     }
 
@@ -83,6 +86,15 @@ where
     pub async fn play_turn(&mut self) -> Result<()> {
         let frame = self.controller.capture_frame().await?;
         let snapshot = self.recognize_board(&frame).await?;
+        let diffs = self
+            .last_snapshot
+            .as_ref()
+            .map(|prev| prev.board.differences(&snapshot.board))
+            .unwrap_or_default();
+        if !diffs.is_empty() {
+            self.log_differences("opponent", &diffs);
+        }
+        self.last_snapshot = Some(snapshot.clone());
         let side = snapshot.board.side_to_move;
         let decision = self
             .engine
@@ -90,9 +102,17 @@ where
             .await?;
 
         if let Some(best_move) = decision.best_move.clone() {
-            self.apply_move(best_move).await?;
+            self.apply_move(best_move.clone()).await?;
         } else {
             warn!("Engine returned no move; skipping controller action");
+        }
+
+        if let Some(best_move) = decision.best_move.clone() {
+            if let Some(ref mut stored) = self.last_snapshot {
+                if let Err(err) = stored.apply_move(side, &best_move) {
+                    warn!("내부 스냅샷 업데이트 실패: {err}");
+                }
+            }
         }
 
         let engine_event = SystemEvent::new(
@@ -111,8 +131,10 @@ where
         Ok(())
     }
 
-    async fn recognize_board(&self, frame: &ImageFrame) -> Result<GameSnapshot> {
-        let hints = RecognitionHints::default();
+    async fn recognize_board(&mut self, frame: &ImageFrame) -> Result<GameSnapshot> {
+        let hints = RecognitionHints {
+            previous_snapshot: self.last_snapshot.clone(),
+        };
         self.recognizer.recognize(frame, hints).await
     }
 
@@ -121,6 +143,23 @@ where
         sleep(Duration::from_millis(30)).await;
         self.controller.tap_square(mv.to).await?;
         Ok(())
+    }
+
+    fn log_differences(&self, source: &str, diffs: &[BoardDiff]) {
+        for diff in diffs {
+            let before = diff
+                .before
+                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
+                .unwrap_or_else(|| "None".into());
+            let after = diff
+                .after
+                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
+                .unwrap_or_else(|| "None".into());
+            info!(
+                "{} 변화: square ({}, {}) {} -> {}",
+                source, diff.square.file, diff.square.rank, before, after
+            );
+        }
     }
 
     async fn publish(&self, event: SystemEvent) -> Result<()> {

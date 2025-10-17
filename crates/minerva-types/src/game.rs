@@ -65,12 +65,31 @@ pub struct TurnContext {
 impl Default for GameSnapshot {
     fn default() -> Self {
         Self {
-            board: BoardState::empty(),
+            board: BoardState::initial(),
             ply: 0,
             last_move: None,
             phase: GamePhase::Opening,
             clocks: GameClocks::default(),
             created_at: Utc::now(),
         }
+    }
+}
+
+impl GameSnapshot {
+    pub fn apply_move(&mut self, side: PlayerSide, mv: &Move) -> Result<(), String> {
+        let moving_piece = self.board.piece_at(mv.from).ok_or_else(|| {
+            format!(
+                "원점에 기물이 없습니다: ({},{})",
+                mv.from.file, mv.from.rank
+            )
+        })?;
+        if moving_piece.owner != side {
+            return Err("선택한 말이 현재 플레이어의 것이 아닙니다".into());
+        }
+        self.board.move_piece(mv.from, mv.to)?;
+        self.board.side_to_move = side.opponent();
+        self.last_move = Some(mv.clone());
+        self.ply += 1;
+        Ok(())
     }
 }

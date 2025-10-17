@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use futures::StreamExt;
 use minerva_controller::{AdbController, DeviceController, MockController};
-use minerva_engine::NullEngine;
+use minerva_engine::RuleBasedEngine;
 use minerva_network::{LocalServer, RealtimeServer};
 use minerva_ops::TelemetryStore;
 use minerva_orchestrator::{MatchRunner, Orchestrator};
@@ -34,7 +34,7 @@ struct CliArgs {
 
     /// 시작 진형 (MasangMasang | SangMasangMa | MasangSangMa | SangMaMaSang)
     #[arg(long, value_name = "PRESET")]
-    formation: Option<FormationPreset>,
+    formation: Option<String>,
 
     /// 컨트롤러 모드 (adb | mock)
     #[arg(long, value_enum, default_value_t = ControllerKind::Adb)]
@@ -55,7 +55,12 @@ async fn main() -> Result<()> {
         config.orchestrator.max_retries = max_retries;
     }
     if let Some(formation) = args.formation {
-        config.orchestrator.formation = formation;
+        match formation.parse::<FormationPreset>() {
+            Ok(preset) => config.orchestrator.formation = preset,
+            Err(err) => {
+                eprintln!("진형 파싱 실패: {err}. 기본값을 사용합니다.");
+            }
+        }
     }
     if let Err(err) = config.validate() {
         eprintln!("설정 값이 올바르지 않아 기본값으로 되돌립니다: {err}");
@@ -153,7 +158,7 @@ where
     C: DeviceController + Send + Sync + 'static,
 {
     let recognizer = TemplateMatchingRecognizer::new(config.vision.clone());
-    let engine = NullEngine::new();
+    let engine = RuleBasedEngine::new();
     let network = LocalServer::new(64);
     let telemetry = TelemetryStore::new();
 
