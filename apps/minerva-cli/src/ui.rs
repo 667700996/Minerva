@@ -147,7 +147,10 @@ fn summarize_status(event: &SystemEvent) -> String {
                 engine.best_line.len()
             )
         }
-        EventPayload::Board(_) => "보드 상태 갱신".to_string(),
+        EventPayload::Board(board) => {
+            let diff_count = board.diffs.len();
+            format!("보드 상태 갱신 (diff {}개)", diff_count)
+        }
         EventPayload::Telemetry(_) => "지연/텔레메트리 수집".to_string(),
         EventPayload::Network(_) => "네트워크 이벤트".to_string(),
         EventPayload::Ops(_) => "운영 알림".to_string(),
@@ -171,7 +174,11 @@ fn format_event(event: &SystemEvent) -> String {
             engine.metrics.nodes,
             engine.best_line.len()
         ),
-        EventPayload::Board(_) => format!("[{}] Board snapshot 수신", timestamp),
+        EventPayload::Board(board) => format!(
+            "[{}] Board snapshot 수신 (diff {}개)",
+            timestamp,
+            board.diffs.len()
+        ),
         EventPayload::Telemetry(_) => format!("[{}] Telemetry 업데이트", timestamp),
         EventPayload::Network(net) => format!(
             "[{}] Network topic={} payload={}",

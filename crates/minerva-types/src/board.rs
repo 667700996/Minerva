@@ -62,7 +62,7 @@ pub struct Piece {
     pub kind: PieceKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BoardDiff {
     pub square: Square,
     pub before: Option<Piece>,

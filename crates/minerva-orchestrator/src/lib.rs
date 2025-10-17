@@ -10,7 +10,10 @@ use minerva_ops::{ensure_telemetry_dir, init_tracing, TelemetryStore};
 use minerva_types::{
     board::BoardDiff,
     config::{MinervaConfig, OrchestratorConfig},
-    events::{EngineEvent, EventKind, EventPayload, LifecycleEvent, LifecyclePhase, SystemEvent},
+    events::{
+        BoardEvent, EngineEvent, EventKind, EventPayload, LifecycleEvent, LifecyclePhase,
+        SystemEvent,
+    },
     game::{GameSnapshot, Move, TurnContext},
     telemetry::EngineMetrics,
     ui::{FormationPreset, StartFlowStep},
@@ -94,6 +97,7 @@ where
         if !diffs.is_empty() {
             self.log_differences("opponent", &diffs);
         }
+        self.publish_board_event(snapshot.clone(), diffs).await?;
         self.last_snapshot = Some(snapshot.clone());
         let side = snapshot.board.side_to_move;
         let decision = self
@@ -145,28 +149,23 @@ where
         Ok(())
     }
 
-    fn log_differences(&self, source: &str, diffs: &[BoardDiff]) {
-        for diff in diffs {
-            let before = diff
-                .before
-                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
-                .unwrap_or_else(|| "None".into());
-            let after = diff
-                .after
-                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
-                .unwrap_or_else(|| "None".into());
-            info!(
-                "{} 변화: square ({}, {}) {} -> {}",
-                source, diff.square.file, diff.square.rank, before, after
-            );
-        }
-    }
-
     async fn publish(&self, event: SystemEvent) -> Result<()> {
         let cloned = event.clone();
         self.network.publish(event).await?;
         self.telemetry.record_event(cloned).await?;
         Ok(())
+    }
+
+    async fn publish_board_event(
+        &self,
+        snapshot: GameSnapshot,
+        diffs: Vec<BoardDiff>,
+    ) -> Result<()> {
+        let event = SystemEvent::new(
+            EventKind::BoardUpdate,
+            EventPayload::Board(BoardEvent { snapshot, diffs }),
+        );
+        self.publish(event).await
     }
 
     async fn perform_start_sequence(&mut self, formation: FormationPreset) -> Result<()> {
@@ -189,6 +188,23 @@ where
 
         sleep(Duration::from_millis(150)).await;
         Ok(())
+    }
+
+    fn log_differences(&self, source: &str, diffs: &[BoardDiff]) {
+        for diff in diffs {
+            let before = diff
+                .before
+                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
+                .unwrap_or_else(|| "None".into());
+            let after = diff
+                .after
+                .map(|p| format!("{:?}_{:?}", p.owner, p.kind))
+                .unwrap_or_else(|| "None".into());
+            info!(
+                "{} 변화: square ({}, {}) {} -> {}",
+                source, diff.square.file, diff.square.rank, before, after
+            );
+        }
     }
 }
 

@@ -2,7 +2,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::telemetry::{EngineMetrics, LatencySample};
+use crate::{
+    board::BoardDiff,
+    telemetry::{EngineMetrics, LatencySample},
+};
 
 /// High-level event bus message kinds moving through the system.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +56,7 @@ pub enum LifecyclePhase {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BoardEvent {
     pub snapshot: crate::game::GameSnapshot,
+    pub diffs: Vec<BoardDiff>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
