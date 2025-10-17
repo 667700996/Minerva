@@ -1,9 +1,12 @@
-use std::env;
+mod ui;
+
+use std::{env, sync::mpsc, thread};
 
 use anyhow::Result;
+use futures::StreamExt;
 use minerva_controller::MockController;
 use minerva_engine::NullEngine;
-use minerva_network::LocalServer;
+use minerva_network::{LocalServer, RealtimeServer};
 use minerva_ops::TelemetryStore;
 use minerva_orchestrator::{MatchRunner, Orchestrator};
 use minerva_types::{
@@ -15,6 +18,7 @@ use minerva_types::{
     ui::FormationPreset,
 };
 use minerva_vision::TemplateMatchingRecognizer;
+use ui::{run as run_ui, UiMessage};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,6 +28,24 @@ async fn main() -> Result<()> {
     let engine = NullEngine::new();
     let network = LocalServer::new(64);
     let telemetry = TelemetryStore::new();
+
+    let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>();
+    let ui_forward_network = network.clone();
+    let ui_forward_tx = ui_tx.clone();
+    let ui_forward_handle = tokio::spawn(async move {
+        let mut stream = ui_forward_network.subscribe();
+        while let Some(event) = stream.next().await {
+            if ui_forward_tx.send(UiMessage::Event(event)).is_err() {
+                break;
+            }
+        }
+    });
+
+    let ui_thread = thread::spawn(move || {
+        if let Err(err) = run_ui(ui_rx) {
+            eprintln!("터미널 UI 오류: {err:?}");
+        }
+    });
 
     let mut orchestrator = Orchestrator::new(
         config.orchestrator.clone(),
@@ -35,7 +57,18 @@ async fn main() -> Result<()> {
     );
 
     orchestrator.boot(&config).await?;
-    orchestrator.run().await?;
+
+    let run_result = orchestrator.run().await;
+
+    let _ = ui_tx.send(UiMessage::Shutdown);
+    drop(ui_tx);
+
+    ui_forward_handle.abort();
+    let _ = ui_forward_handle.await;
+
+    let _ = ui_thread.join();
+
+    run_result?;
     Ok(())
 }
 
